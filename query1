@@ -1,0 +1,41 @@
+WITH 
+  STEP1 AS
+    (SELECT asin
+          , gtin
+          , gtin_status
+          , LAST_MODIFIED_TIME
+     FROM (SELECT asin
+                , gtin
+                , gtin_status
+                , LAST_MODIFIED_TIME
+                , ROW_NUMBER() OVER(PARTITION BY gtin ORDER BY LAST_MODIFIED_TIME DESC ) RN
+         FROM o_amzn_products_lc_audit 
+         WHERE asin in ('B0793R163R','B07TJ92P1M','B082RJQMX9','B087N28VJ7','B08JTQ6KK4','B08NZZKB6Q','B08NZZPSQB','B08NZZSL14','B08P114N7X','B08P116GKM','B08P11HQNW','B08P123QHY','B08P124K75','B08P12Q663','B08P12X2F3','B09BW84XS9','B09KTPLB1Q','B09KTQXDW2','B09MJ9435R'))
+         -- Replace the above asins with the asins for which you want to work.
+     WHERE RN =1) 
+, STEP2 AS
+    (SELECT * FROM 
+      (SELECT  asin
+             , distributor_id
+             , distributor_type
+             , merchant_id
+             , is_authorized_distributor
+             , last_modified_time
+             , row_number() over(partition by distributor_id order by last_modified_time  desc) rn
+       FROM public.o_amzn_distr_ctlg_audit_v2 
+       WHERE  asin in ( SELECT asin
+                        FROM STEP1)) 
+     WHERE  rn=1)
+SELECT   a.asin
+       , a.gtin
+       , a.gtin_status
+       , b.distributor_id
+       , b.distributor_type
+       , b.merchant_id
+       , b.is_authorized_distributor
+       , b.last_modified_time
+FROM STEP1 a
+CROSS JOIN STEP2 b
+WHERE a.asin=b.asin
+ORDER BY 1;
+       
