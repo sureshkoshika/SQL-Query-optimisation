@@ -1,4 +1,4 @@
---Query
+-- Skills: Advance Joins, CTEs, WIndow functions
 WITH 
   STEP1 AS
     (SELECT asin
