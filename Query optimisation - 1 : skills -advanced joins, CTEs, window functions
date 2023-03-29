@@ -1,3 +1,4 @@
+--Query
 WITH 
   STEP1 AS
     (SELECT asin
