@@ -9,8 +9,8 @@ STEP1 AS
       , b.date
       , b.feedback_score
       , b.comment
-   FROM transparency_bce.alp_landing_page_prod_source a
-   LEFT JOIN transparency_bce.alp_customer_feedback_prod b
+   FROM table1 a
+   LEFT JOIN table4 b
    ON a.scan_id = b.scan_id
    WHERE  b.comment IS NOT NULL 
    ORDER BY 5 DESC)
@@ -27,8 +27,8 @@ STEP1 AS
          , b.brand_name
          , b.tpncy_brand_id as brand_id
          , b.billing_entity_tpncy_id as account_id
-      from o_amzn_products_lc a 
-      left join d_tpncy_products b 
+      from table2 a 
+      left join table3 b 
       on a.gtin = b.gtin_list 
       WHERE a.gtin in (SELECT gtin 
                      FROM STEP1)) x
@@ -59,8 +59,8 @@ STEP1 AS
       , b.date
       , b.feedback_score
       , b.comment
-   FROM transparency_bce.alp_landing_page_prod_source a
-   LEFT JOIN transparency_bce.alp_customer_feedback_prod b
+   FROM table1 a
+   LEFT JOIN table4 b
    ON a.scan_id = b.scan_id
    WHERE  b.comment IS NOT NULL AND b.feedback_score = 1
    ORDER BY 5 DESC)
@@ -77,8 +77,8 @@ STEP1 AS
          , b.brand_name
          , b.tpncy_brand_id as brand_id
          , b.billing_entity_tpncy_id as account_id
-      from o_amzn_products_lc a 
-      left join d_tpncy_products b 
+      from table2 a 
+      left join table3 b 
       on a.gtin = b.gtin_list 
       WHERE a.gtin in (SELECT gtin 
                      FROM STEP1)) x
