@@ -1,0 +1,82 @@
+WITH 
+CTE1 AS
+       ( SELECT *
+        FROM (
+                SELECT
+                	  warehouse_id
+                	, ship_method
+                	, ship_option_group_name
+                	, destination_warehouse_id
+                	, dateadd(minute,330,cap_interval_start) as cap_interval_start
+                	, dateadd(minute,330,cap_interval_end) as cap_interval_end 
+                    , cap_measurement_type, cap_type, value
+                	, min_target_current_value,pre_slam, post_slam
+                    , trunc(dateadd(minute,330,snapshot_creation_date)) as snapshot_creation_date_IST
+                	, Rank () over (partition by warehouse_id,ship_method,ship_option_group_name,cap_interval_start order by snapshot_creation_date desc) rn
+                FROM table_one
+                WHERE 
+                trunc(dateadd(minute,330,snapshot_creation_date)) > Current_date-2
+              
+                AND ship_option_group_name IN  ('ship_option_group_name*')
+                AND ship_method IS NOT null
+                AND trunc(cap_interval_end) >= current_date
+                AND trunc(cap_interval_end) < current_date+10 )
+                WHERE rn=1)
+         
+, CTE2 AS        
+    (SELECT 
+      a.warehouse_id
+    , a.destination_warehouse_id
+    , a.cap_interval_end
+    , a.value as Capacity
+    , a.min_target_current_value as Schedules
+    , CASE 
+                WHEN a.value = 0 THEN 0  -- Handling divide by zero error
+                ELSE a.min_target_current_value / a.value 
+            END as Utilization
+    , EXTRACT(HOUR FROM a.cap_interval_end) as CPT
+    , CASE 
+                WHEN EXTRACT(HOUR FROM a.cap_interval_end) < 19 THEN 'D1' 
+                ELSE 'D0' 
+            END AS Landing
+FROM CTE1 a
+WHERE a.ship_method = 'ship_method*' AND a.ship_option_group_name='ship_option_group_name*'
+GROUP BY 1, 2, 3,4,5,6,7,8)
+
+, CTE3 AS 
+    (SELECT warehouse_id
+           , destination_warehouse_id
+           , AVG(Capacity)  as Average_cap
+     FROM CTE2
+     GROUP BY 1,2)
+ , CTE4 AS 
+    (SELECT warehouse_id
+          , destination_warehouse_id
+          , CASE WHEN Landing = 'D0' AND cap_interval_end>CURRENT_DATE+1
+                THEN SUM(Schedules) 
+            WHEN Landing = 'D1' AND cap_interval_end>CURRENT_DATE+2
+                THEN SUM(Schedules)  END AS BACKLOG
+     FROM CTE2
+     GROUP BY warehouse_id,destination_warehouse_id,Landing,cap_interval_end)
+ , CTE5 AS 
+    (SELECT warehouse_id
+          , destination_warehouse_id
+          , CASE WHEN Landing = 'D0' AND cap_interval_end>=CURRENT_DATE 
+                THEN SUM(CASE WHEN  Utilization>0.95 THEN 1 END) 
+            WHEN Landing = 'D1' AND cap_interval_end>CURRENT_DATE 
+                THEN SUM(CASE WHEN  Utilization>0.95 THEN 1 END) END AS ROLLOVER
+     FROM CTE2
+     GROUP BY warehouse_id,destination_warehouse_id,Landing,cap_interval_end)
+
+SELECT b.*
+     , c.Average_cap
+     , sum(d.Backlog) AS Backlog
+     , SUM(e.ROLLOVER) AS ROLLOVER
+from cte2 b
+LEFT JOIN CTE3 c
+ON b.warehouse_id=c.warehouse_id AND  b.destination_warehouse_id=c.destination_warehouse_id 
+LEFT JOIN CTE4 d
+ON b.warehouse_id=d.warehouse_id  AND b.destination_warehouse_id=d.destination_warehouse_id
+LEFT JOIN CTE5 e
+ON b.warehouse_id=e.warehouse_id  AND b.destination_warehouse_id=e.destination_warehouse_id
+GROUP BY 1,2,3,4,5,6,7,8,9
