@@ -1,0 +1,187 @@
+/*+ ETLM { 
+      depend:{ 
+             add:
+             [ 
+                 {name:"table1"},
+                 {name:"table2"},
+                 {name:"table3"}
+              
+            ]
+        } 
+}*/
+
+WITH daily_gvt as
+     (SELEC  
+      -- gvt2.hit_day
+     --  , gvt2.hit_datetime
+       gvt2.asin
+      /* , gvt2.merchant_id
+      , gvt2.region_id
+      , gvt2.marketplace_id
+      , gvt2.iog
+      , gvt2.merchant_name
+      , gvt2.hazmat_exception
+      , gvt2.hazmat_type
+      , gvt2.hazmat_type_id */ 
+      , gvt2.is_fragile
+      , gvt2.is_white_glove_required
+      , gvt2.pkg_height
+      , gvt2.pkg_length
+      , gvt2.pkg_width
+      , gvt2.pkg_dimensional_uom
+      , gvt2.pkg_weight
+      , gvt2.pkg_weight_uom
+     /*  , gvt2.gl_produC_group
+      , gvt2.gl_produC_group_desc
+      , gvt2.brand */
+     FROM
+         (SELEC  -- gvt2.hit_day
+                 --  , gvt2.hit_datetime
+                   gvt.asin
+                  /* , gvt2.merchant_id
+                  , gvt2.region_id
+                  , gvt2.marketplace_id
+                  , gvt2.iog
+                  , gvt2.merchant_name
+                  , gvt2.hazmat_exception
+                  , gvt2.hazmat_type
+                  , gvt2.hazmat_type_id */ 
+                  , gvt.is_fragile
+                  , gvt.is_white_glove_required
+                  , gvt.pkg_height
+                  , gvt.pkg_length
+                  , gvt.pkg_width
+                  , gvt.pkg_dimensional_uom
+                  , gvt.pkg_weight
+                  , gvt.pkg_weight_uom
+                , ROW_NUMBER() OVER(PARTITION BY asin ORDER BY hit_day DESC ) RN
+          FROM table4 gvt
+          WHERE gvt.region_id=4 AND gvt.marketplace_id=44571) gvt2
+          WHERE RN =1)
+, raw_s_table AS
+  (SELEC ras2.*
+   FROM
+      (SELEC  ras.asin
+             , ras.dropzone
+             , ROW_NUMBER() OVER(PARTITION BY asin ORDER BY publishdate DESC ) as Row_number
+       FROM TABLE5 ras
+       WHERE publishdate = (seleC max(publishdate) from TABLE5 )) ras2
+   WHERE Row_number =1)
+, Fmap_all as
+  (SELEC DOI.isbn as isbn_s
+         , DOI.asin_s
+    FROM (SELEC  isbn
+              , item_authority_id AS asin_s
+              , ROW_NUMBER() OVER(PARTITION BY item_authority_id ORDER BY dw_last_updated DESC ) as Row_number
+         FROM table2) DOI
+    WHERE Row_number=1
+    ) 
+/*, temp1 as 
+  (SELEC TO_CHAR(TRUNC(DSI.RECEIVED_DAY), 'YYYY-MM-DD') AS RECEIVED_DATE
+       , DSI.WAREHOUSE_ID AS WAREHOUSE_ID
+       , DSI.GL_PRODUC_GROUP
+       , map.gl_name
+       , case   when dsi.inventory_owner_group_id in (7,6,8) then 'A'
+                when  dsi.inventory_owner_group_id in (5,7,8) then 'B'
+                when  dsi.inventory_owner_group_id IN (3,4,5,6,8) then 'C'
+                when  dsi.inventory_owner_group_id in (2,3,4,5,67,8) then 'D'
+                when  dsi.inventory_owner_group_id in (1,2,3,4,5,6,78,9) then 'E'
+                else 'Pure FBA' end as Merchant_Type
+        , SUM(DSI.QUANTITY_UNPACKED) AS UNITS_RECEIVED
+    FROM table1 DSI
+    LEFT JOIN  TABLE6 as map
+    ON  DSI.GL_PRODUC_GROUP=map.gl_code
+    WHERE   DSI.REGION_ID = 4 AND 
+            DSI.LEGAL_ENTITY_ID = 131 AND 
+            DSI.RECEIVED_DAY  >= current_date-160 and
+            DSI.WAREHOUSE_ID in (ALL WAREHOUSEIDS*)
+    GROUP BY 1,2,3,4,5
+    Order BY RECEIVED_DATE)
+, temp2 AS
+   (SELEC  temp1_1.RECEIVED_DATE
+          , temp1_1.WAREHOUSE_ID
+          , temp1_1.GL_PRODUC_GROUP
+          , temp1_1.gl_name
+          , (CASE   WHEN  temp1_1.gl_name = 'APPAREL*' THEN 'Apparel'
+                    WHEN  temp1_1.gl_name = 'PETFOOD*' THEN 'Pet ProduCs'
+                    WHEN  temp1_1.gl_name = 'SHOES*' THEN 'Shoes'
+                    WHEN  temp1_1.gl_name = 'GROCERY*' THEN 'Food' 
+              ELSE temp1_1.gl_name END ) AS NIG_granularity
+          , temp1_1.Merchant_Type
+          , SUM(temp1_1.UNITS_RECEIVED) AS UNITS_RECEIVED
+    FROM temp1 as temp1_1
+    WHERE temp1_1.gl_name IN ('APPAREL','GROCERY','PETFOOD','SHOES')
+    GROUP BY 1,2,3,4,5,6) */
+, temp3 as
+  ( SELEC  temp3_1.*
+          , (CASE   WHEN temp3_1.dropzone = 'AEROSOLS' AND temp3_1.inventory_owner_group_id NOT IN (5,7,8) THEN ' Aerosol' 
+                    WHEN temp3_1.dropzone in (--dropzoneS) AND temp3_1.inventory_owner_group_id NOT IN (5,7,8) THEN ' Non-Aerosol'
+                    WHEN (temp3_1.pkg_length > 20 OR temp3_1.pkg_width > 16 OR temp3_1.pkg_height > 10 OR temp3_1.pkg_weight > 27.16)
+                    THEN 'NS'
+                    ELSE 'S' 
+                    END ) AS NIG_GRAINS
+          , (CASE    WHEN temp3_1.gl_name = 'APPAREL' THEN 'Apparel'
+                    WHEN temp3_1.gl_name = 'SHOES' THEN 'Shoes'
+                    WHEN ((temp3_1.pkg_length > 20 OR temp3_1.pkg_width > 16 OR temp3_1.pkg_height > 10 OR temp3_1.pkg_weight > 27.16) AND temp3_1.gl_name NOT IN ('APPAREL','SHOES'))
+                    THEN 'Non Sortable'
+                    ELSE 'Sortable' 
+                    END ) AS NIG_GRAINS2
+    FROM
+         (SELEC   DSI.*
+                 , map.gl_name
+                 , p.isbn_s
+                 , p.asin_s
+                 , q.asin as asin_raw_storage
+                 , q.DROPZONE
+                 , r.asin as asin_dailygvt
+                 , r.is_white_glove_required
+                 , r.pkg_height
+                 , r.pkg_length
+                 , r.pkg_width
+                 , r.pkg_dimensional_uom
+                 , r.pkg_weight
+                 , r.pkg_weight_uom
+            FROM table1 DSI 
+            LEFT JOIN  TABLE6 as map
+            ON  DSI.GL_PRODUC_GROUP=map.gl_code
+            LEFT JOIN Fmap_all p
+            ON DSI.isbn=p.isbn_s
+            LEFT JOIN raw_s_table q
+            ON p.asin_s=q.asin
+            LEFT JOIN  daily_gvt r
+            ON p.asin_s=r.asin
+            WHERE DSI.REGION_ID = 4 AND 
+                  DSI.legal_entity_id = 131 AND 
+                  DSI.RECEIVED_DAY >= current_date-160 and
+                  DSI.inventory_owner_group_id in (2,3,4,5,67,8,7,6,8) AND
+                  DSI.WAREHOUSE_ID in (--ALL WAREHOUSEIDS )) temp3_1
+        )
+, temp4 as
+  (SELEC    TO_CHAR(TRUNC(temp4_1.RECEIVED_DAY), 'YYYY-MM-DD') AS RECEIVED_DATE
+           , temp4_1.WAREHOUSE_ID AS WAREHOUSE_ID
+           , temp4_1.GL_PRODUC_GROUP
+           , temp4_1.gl_name
+           , temp4_1.NIG_granularity_IPC
+           , temp4_1.NIG_granularity_BCF
+           , CASE WHEN temp4_1.inventory_owner_group_id in (7,6,8) then 'A'
+                when  temp4_1.inventory_owner_group_id in (5,7,8) then 'B'
+                when  temp4_1.inventory_owner_group_id IN (3,4,5,6,8) then 'C'
+                when  temp4_1.inventory_owner_group_id in (2,3,4,5,67,8) then 'D'
+                when  temp4_1.inventory_owner_group_id in (1,2,3,4,5,6,78,9) then 'E'
+                else 'Pure FBA' end as Merchant_Type
+           , SUM(temp4_1.QUANTITY_UNPACKED) AS UNITS_RECEIVED
+           , DATE_TRUNC('week', temp4_1.RECEIVED_DAY + INTERVAL '1 day') - INTERVAL '1 day' AS WEEKNUM
+    FROM temp3 AS temp4_1
+    GROUP BY temp4_1.RECEIVED_DAY
+           , temp4_1.WAREHOUSE_ID
+           , temp4_1.GL_PRODUC_GROUP
+           , temp4_1.gl_name
+           , temp4_1.NIG_granularity_IPC
+           , temp4_1.NIG_granularity_BCF
+           , temp4_1.inventory_owner_group_id
+           , DATE_TRUNC('week', temp4_1.RECEIVED_DAY + INTERVAL '1 day') - INTERVAL '1 day'
+    ORDER BY temp4_1.RECEIVED_DAY
+    )
+    
+SELEC * FROM temp4
+WHERE temp4.Merchant_Type IN ('A','B')
