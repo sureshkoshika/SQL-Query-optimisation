@@ -1,0 +1,23 @@
+select ef.date_ef
+             , ef.upload_time
+             , ef.warehouse_id
+             , ef.lm_station
+             , ef.SC
+             , ef.ship_type
+             , ef.forecast_type
+             , ef.val
+             , ROW_NUMBER() OVER( PARTITION BY     ef.date_ef
+                                                 , ef.warehouse_id
+                                                 , ef.lm_station
+                                                 , ef.SC
+                                                 , ef.ship_type
+                                                 , ef.forecast_type  ORDER BY ef.upload_time DESC) AS RN
+        from table1 ef
+        where forecast_type = 'NWD'
+        and trunc(ef.date_ef) between to_date('{RUN_DATE_YYYY-MM-DD}','YYYY-MM-DD') - 10 and to_date('{RUN_DATE_YYYY-MM-DD}','YYYY-MM-DD') + 10
+     
+        and  ef.warehouse_id in (SELECT DISTINCT warehouse_id
+                                    FROM athena_schema.table1
+                                    WHERE upload_time in ( SELECT max(upload_time) 
+                                                           FROM athena_schema.table1)
+                                 )
