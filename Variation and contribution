@@ -1,0 +1,69 @@
+WITH CTE1 AS
+            ( SELECT  a.channel
+                 , a.ship_day	
+                 , a.pl_new	
+                 , a.gl_snop	
+                 , SUM(a.actuals) actuals
+                 , SUM(a.forecast) forecast
+                 , (a.actuals-a.forecast) as Variation
+                 
+            from table1* a
+            WHERE channel in ('channels')
+            GROUP BY a.channel , a.ship_day , a.pl_new , a.gl_snop, a.actuals, a.forecast 
+             
+            UNION ALL
+            
+            SELECT  'Network' as channel
+                 , a.ship_day	
+                 , a.pl_new	
+                 , a.gl_snop	
+                 , SUM(a.actuals) actuals
+                 , SUM(a.forecast) forecast
+                 , (a.actuals-a.forecast) as Variation
+                 
+            from table1* a
+            WHERE channel in ('channels')
+            GROUP BY 1 , a.ship_day , a.pl_new , a.gl_snop, a.actuals, a.forecast
+            
+            )
+    , CTE2 AS 
+             (
+             
+             SELECT channel
+                 , ship_day
+                 , SUM(forecast) total_forecast
+             FROM table1*
+             WHERE channel in ('channels')
+             GROUP BY 1,2
+             
+             UNION ALL
+             
+             SELECT 'Network' as channel
+                 , ship_day
+                 , SUM(forecast) total_forecast
+             FROM table1*
+             WHERE channel in ('channels')
+             GROUP BY 1,2
+             
+             )
+    , CTE3 AS          
+            (SELECT  a.*
+                  , b.channel AS channel2
+                  , b.ship_day AS ship_day2
+                  , b.total_forecast
+            FROM CTE1 a
+            CROSS JOIN CTE2 b
+            WHERE a.channel=b.channel AND a.ship_day=b.ship_day)
+SELECT  c.channel
+      , c.ship_day 
+      , c.pl_new	
+      , c.gl_snop	
+      , c.actuals	
+      , c.forecast	
+      , c.variation	
+      , c.total_forecast
+      , CASE WHEN Sum( c.total_forecast) <> 0 
+                        THEN ((c.variation) / Sum(c.total_forecast))
+                        ELSE 0 END AS Contribution
+FROM CTE3 c
+GROUP BY 1,2,3,4,5,6,7,8
