@@ -1,0 +1,15 @@
+SELECT   merchant_id
+        , shipper_name
+        , pickup_time
+        , pickup_node
+        , pickup_city
+        , pickup_node_zone
+        , channel
+        , is_cod
+        , count(tracking_id) as volume
+FROM TABLE1*
+-- where trunc(pickup_time) >=  to_date('{RUN_DATE_YYYY-MM-DD}','YYYY-MM-DD') - 20
+
+WHERE trunc(pickup_time) BETWEEN CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::INTEGER - 7
+                                  AND CURRENT_DATE - EXTRACT(DOW FROM CURRENT_DATE)::INTEGER-1
+Group by 1,2,3,4,5,6,7,8
