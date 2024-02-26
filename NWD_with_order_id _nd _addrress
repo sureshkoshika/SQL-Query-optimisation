@@ -1,0 +1,125 @@
+with 
+
+  T3 as ( base query
+          WHERE DATE BETWEEN CURRENT_DATE-20 AND CURRENT_DATE)
+, CTE_penultimate as ( base query2)
+
+ , cte_final as 
+
+    (
+    
+    SELECT     x.order_id
+              , u.shipping_address_id
+              , x.asin
+              , sht.shipment_type
+              , x.WAREHOUSE_ID
+              , x.PL_GROUP
+              , x.gl_name
+              , x.ship_day
+              , SUM(x.NWD) AS NWD
+FROM CTE_penultimate x
+LEFT  JOIN (
+            SELECT  order_id
+                  , asin
+                  , shipping_address_id
+            FROM (
+                    SELECT  order_id
+                          , asin
+                          , shipping_address_id
+                          , ROW_NUMBER() OVER(PARTITION BY order_id,asin ORDER BY dw_last_updated DESC ) RN
+                    from orderstable
+                    WHERE region_id=4
+                 ) da
+            WHERE da.RN=1
+            ) u
+ON x.order_id=u.order_id and x.ASIN=u.ASIN
+LEFT JOIN ( SELECT  order_id
+                  , asin
+                  , shipment_type
+            FROM (
+                    SELECT  order_id
+                          , asin
+                          , shipment_type
+                          , ROW_NUMBER() OVER(PARTITION BY order_id,asin ORDER BY dw_last_updated DESC ) RN
+                    from shipmenttable 
+                    WHERE region_id=4 and trunc(ship_day) Between  current_date-21 and current_date+20
+                 ) da
+            WHERE da.RN=1
+            ) sht
+ON x.order_id=sht.order_id and x.ASIN=sht.ASIN 
+WHERE  x.flag = 'Total'  
+
+
+GROUP BY        x.order_id
+              , u.shipping_address_id
+              , x.asin
+              , sht.shipment_type
+              , x.WAREHOUSE_ID
+              , x.PL_GROUP
+              , x.gl_name
+              , x.ship_day
+HAVING SUM(x.NWD) <>0 )
+              
+
+ , lasts_step as (
+ 
+ SELECT  
+                COALESCE(cf.order_id,'Unknown') as order_id
+              , COALESCE(cf.shipping_address_id,'0') as shipping_address_id
+              , COALESCE(cf.asin,'Unknown') as asin
+              , COALESCE(cf.shipment_type,'Unknown') as shipment_type
+              , COALESCE(cf.WAREHOUSE_ID,'Unknown') as WAREHOUSE_ID
+              , COALESCE(cf.PL_GROUP,'Unknown') as PL_GROUP
+              , COALESCE(cf.gl_name,'Unknown') as gl_name
+              , cf.ship_day
+              , SUM(cf.NWD) AS NWD
+              , COALESCE(w.city,'Unknown') as customer_city
+              , COALESCE(w.state,'Unknown') as customer_state
+              , COALESCE(pg.item_name,'Unknown') as item_name
+FROM cte_final cf
+LEFT JOIN (
+       SELECT  da.address_id
+                  , da.postal_code 
+        FROM (
+                SELECT  address_id
+                      , (CASE WHEN CHAR_LENGTH(postal_code) = 6 
+                             THEN postal_code 
+                             ELSE '0000' 
+                             END) AS postal_code
+                      , ROW_NUMBER() OVER(PARTITION BY address_id ORDER BY dw_last_updated DESC ) RN
+                from addresstable
+                WHERE country_code='IN'
+             ) da
+        WHERE da.RN=1
+         ) v
+on cf.shipping_address_id = v.address_id
+LEFT JOIN (SELECT    pm.postal_code
+                   , pm.city
+                   , pm.state   
+            FROM (       
+                    SELECT  postal_code
+                          , city
+                          , state
+                          , ROW_NUMBER() OVER(PARTITION BY postal_code ) RN
+                    FROM pincodemaptable
+                 ) pm
+            WHERE pm.RN=1
+          ) w
+ON v.postal_code=w.postal_code
+
+left join ( SELECT       dmp.ASIN
+                       , dmp.item_name
+            FROM 
+               (SELECT    ASIN
+                        , item_name
+                        , gl_product_group_desc
+                        , ROW_NUMBER() OVER(PARTITION BY ASIN ORDER BY dw_last_updated DESC ) RN
+                FROM asinmaptable
+                where region_id=4) dmp
+            WHERE dmp.RN=1) pg
+on cf.asin = pg.asin
+GROUP BY 1,2,3,4,5,6,7,8,10,11,12
+ )
+
+SELECT * FROM lasts_step
+WHERE ship_day BETWEEN  current_date-19 and current_date   
