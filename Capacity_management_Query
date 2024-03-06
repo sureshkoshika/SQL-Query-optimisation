@@ -9,7 +9,7 @@ CTE1 AS
                 	, destination_warehouse_id
                 	, dateadd(minute,330,cap_interval_start) as cap_interval_start
                 	, dateadd(minute,330,cap_interval_end) as cap_interval_end 
-                    , cap_measurement_type, cap_type, value
+                    , cap_measurement_type, cap_type,value
                 	, min_target_current_value,pre_slam, post_slam
                     , trunc(dateadd(minute,330,snapshot_creation_date)) as snapshot_creation_date_IST
                 	, Rank () over (partition by warehouse_id,ship_method,ship_option_group_name,cap_interval_start order by snapshot_creation_date desc) rn
